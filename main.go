@@ -359,13 +359,16 @@ func handleSubmit(w http.ResponseWriter, r *http.Request) {
 	url := r.FormValue("url")
 	title := r.FormValue("title")
 	flair := r.FormValue("flair")
-	post, _, err := rclient.Post.SubmitLink(context.Background(), reddit.SubmitLinkRequest{
+	linkReq := reddit.SubmitLinkRequest{
 		Subreddit:   subreddit,
 		Title:       title,
 		URL:         url,
-		FlairID:     flair,
 		SendReplies: newFalse(),
-	})
+	}
+	if flair != "" {
+		linkReq.FlairID = flair
+	}
+	post, _, err := rclient.Post.SubmitLink(context.Background(), linkReq)
 	if err != nil {
 		log.WithError(err).Error("Error on Submig")
 		writeHtmlError(w, err)
