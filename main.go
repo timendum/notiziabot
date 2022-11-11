@@ -356,8 +356,8 @@ func newFalse() *bool {
 func handleSubmit(w http.ResponseWriter, r *http.Request) {
 	log.WithFields(log.Fields{"request": r}).Debug("/submig")
 	u, _ := ReadCookieHandler(w, r)
-	url := r.FormValue("url")
-	title := r.FormValue("title")
+	url := strings.Trim(r.FormValue("url"), "")
+	title := strings.Trim(r.FormValue("title"), "")
 	flair := r.FormValue("flair")
 	linkReq := reddit.SubmitLinkRequest{
 		Subreddit:   subreddit,
@@ -368,12 +368,13 @@ func handleSubmit(w http.ResponseWriter, r *http.Request) {
 	if flair != "" {
 		linkReq.FlairID = flair
 	}
+	log.WithFields(log.Fields{"post": linkReq}).Info("Posting")
 	post, _, err := rclient.Post.SubmitLink(context.Background(), linkReq)
 	if err != nil {
-		log.WithError(err).Error("Error on Submig")
+		log.WithError(err).Error("Error on Submit")
 		writeHtmlError(w, err)
 		return
 	}
-	log.WithFields(log.Fields{"user": *u, "post": post.ID}).Info("New post")
+	log.WithFields(log.Fields{"user": *u, "post": post.ID}).Info("Post done")
 	http.Redirect(w, r, "https://redd.it/"+post.ID, http.StatusTemporaryRedirect)
 }
