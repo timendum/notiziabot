@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 
+	phtml "golang.org/x/net/html"
+
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gorilla/securecookie"
@@ -120,6 +122,7 @@ func main() {
 	mux.HandleFunc("/callback", handleCallback)
 	mux.HandleFunc("/post", handlePost)
 	mux.HandleFunc("/submit", handleSubmit)
+	mux.HandleFunc("/title", handleGetTitle)
 
 	log.Info("Serving on :3000")
 	err = http.ListenAndServe("127.0.0.1:3000", mux)
@@ -293,7 +296,7 @@ func validateOAuth(state string, code string) (*string, *string, error) {
 }
 
 // Build HTML for submit form
-func buildSubmitForm(user string, token string) string {
+func buildSubmitForm(user string) string {
 	var b strings.Builder
 	b.WriteString(`<html><body><p>You are: `)
 	b.WriteString(html.EscapeString(user))
@@ -312,7 +315,21 @@ func buildSubmitForm(user string, token string) string {
 		}
 		b.WriteString(`</select></p>`)
 	}
-	b.WriteString(`<input type="submit" value="Post">`)
+	b.WriteString(`<input type="submit" value="Post"> &nbsp; `)
+	b.WriteString(`<button name="gettitle" type="button">Get title</button>`)
+	b.WriteString(`
+<script>
+	function getTitle() {
+		let formData = new FormData();
+		formData.append("url", document.getElementsByName('url')[0].value);
+		fetch(document.location.href.substr(0, document.location.href.lastIndexOf("/") + 1) + 'title',
+			{method: "Post",body: formData}
+		).then(resp => resp.json()
+		).then(resp => document.getElementsByName('title')[0].value = resp.Title);
+		return false;
+	}
+	window.onload = (event) => {document.getElementsByName('gettitle')[0].addEventListener("click", getTitle, true);};
+</script>`)
 	return b.String()
 
 }
@@ -335,12 +352,64 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/post", http.StatusTemporaryRedirect)
 }
 
+func fetchTitle(url string) (*string, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	doc, err := phtml.Parse(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	var title = ""
+	var findTitle func(*phtml.Node)
+	findTitle = func(n *phtml.Node) {
+		if title != "" {
+			return
+		}
+		if n.Type == phtml.ElementNode && n.Data == "title" {
+			title = n.FirstChild.Data
+			return
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			findTitle(c)
+		}
+	}
+	findTitle(doc)
+	return &title, nil
+}
+
+type TitleReturn struct {
+	Error string
+	Title string
+}
+
+// Returns the form for posting
+func handleGetTitle(w http.ResponseWriter, r *http.Request) {
+	log.WithFields(log.Fields{"request": r}).Debug("/title")
+	user, _ := ReadCookieHandler(w, r)
+	url := r.FormValue("url")
+	if user != nil && url != "" {
+		jout := json.NewEncoder(w)
+		title, err := fetchTitle(url)
+		ret := TitleReturn{}
+		if err != nil {
+			ret.Error = err.Error()
+		} else {
+			ret.Title = *title
+		}
+		jout.Encode(ret)
+		return
+	}
+}
+
 // Returns the form for posting
 func handlePost(w http.ResponseWriter, r *http.Request) {
 	log.WithFields(log.Fields{"request": r}).Debug("/post")
-	user, token := ReadCookieHandler(w, r)
+	user, _ := ReadCookieHandler(w, r)
 	if user != nil {
-		fmt.Fprint(w, buildSubmitForm(*user, *token))
+		fmt.Fprint(w, buildSubmitForm(*user))
 		return
 	}
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
@@ -354,8 +423,12 @@ func newFalse() *bool {
 
 // Post link to subreddit and redirect
 func handleSubmit(w http.ResponseWriter, r *http.Request) {
-	log.WithFields(log.Fields{"request": r}).Debug("/submig")
+	log.WithFields(log.Fields{"request": r}).Debug("/submit")
 	u, _ := ReadCookieHandler(w, r)
+	if u == nil {
+		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+		return
+	}
 	url := strings.Trim(r.FormValue("url"), "")
 	title := strings.Trim(r.FormValue("title"), "")
 	flair := r.FormValue("flair")
