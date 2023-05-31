@@ -170,12 +170,12 @@ func getRoot(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/post", http.StatusTemporaryRedirect)
 		return
 	}
-	fmt.Fprintf(w, `<html><body><p><a href="/login">Log In</a></p></body></html>`)
+	fmt.Fprintf(w, `<!doctype html><html><body><p><a href="/login">Log In</a></p></body></html>`)
 }
 
 // Return login page or go to post page if already logged
 func writeHtmlError(w http.ResponseWriter, err error) {
-	fmt.Fprint(w, `<html><body>`)
+	fmt.Fprint(w, `<!doctype html><html><body>`)
 	fmt.Fprintf(w, `<p>Error: %s<p>`, err)
 	fmt.Fprint(w, `<p><a href="/login">Log In</a></p>
 <p><a href="#back" onClick="history.go(-1); return false;">Back</a></p>
@@ -298,7 +298,7 @@ func validateOAuth(state string, code string) (*string, *string, error) {
 // Build HTML for submit form
 func buildSubmitForm(user string) string {
 	var b strings.Builder
-	b.WriteString(`<html><body><p>You are: `)
+	b.WriteString(`<!doctype html><html><body><p>You are: `)
 	b.WriteString(html.EscapeString(user))
 	b.WriteString(`</p><form action='/submit' method="post">`)
 	b.WriteString(`<p>URL: 
