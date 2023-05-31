@@ -301,7 +301,14 @@ func buildSubmitForm(user string) string {
 	b.WriteString(`<html><body><p>You are: `)
 	b.WriteString(html.EscapeString(user))
 	b.WriteString(`</p><form action='/submit' method="post">`)
-	b.WriteString(`<p>URL: <input type='text' name='url' size='200'></p>`)
+	b.WriteString(`<p>URL: 
+	<input 
+		type='text'
+		name='url'
+		size='200'
+		required
+		pattern='https?:\/\/[\w%._\+~#=]{2,256}\.[a-z]{2,6}(?:\/.*)?'
+	></p>`)
 	b.WriteString(`<p>Title: <input type='text' name='title' size='200'></p>`)
 	flairs, _, _ := rclient.Flair.GetPostFlairs(context.Background(), subreddit)
 	if flairs != nil {
